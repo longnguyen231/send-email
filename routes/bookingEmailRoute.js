@@ -79,26 +79,42 @@ router.post("/send-email", async (req, res) => {
     let roomDetailsHtml = "<p><i>No room details provided</i></p>";
     let computedTotal = null;
 
-    const roomsArray = Array.isArray(req.body.rooms)
-      ? req.body.rooms
-      : (Array.isArray(bookingData.rooms) ? bookingData.rooms : null);
-    const singleRoomObj = req.body.room || bookingData.room;
+    // Normalize to a single rooms array for simplicity
+    const roomsArray = (() => {
+      if (Array.isArray(bookingData.rooms)) return bookingData.rooms;
+      if (Array.isArray(req.body.rooms)) return req.body.rooms;
+      const fallbackRoom = bookingData.room || req.body.room;
+      if (fallbackRoom && typeof fallbackRoom === "object") return [fallbackRoom];
+      if (req.body.roomName || req.body.roomType || req.body.roomCount || req.body.pricePerNight) {
+        const qty = Number(req.body.roomCount ?? 1) || 1;
+        const ppn = Number(req.body.pricePerNight ?? 0) || 0;
+        const itemNights = Number(bookingData.nights ?? req.body.nights ?? nights ?? 1) || 1;
+        const name = (req.body.roomName ?? req.body.roomType);
+        return [{ name, quantity: qty, pricePerNight: ppn, nights: itemNights }];
+      }
+      return [];
+    })();
 
-    if (Array.isArray(roomsArray) && roomsArray.length) {
+    if (roomsArray.length) {
+      const normalizedRooms = roomsArray.map((r) => {
+        const quantity = Number(r?.quantity ?? r?.roomCount ?? 1) || 1;
+        const pricePerNight = Number(r?.pricePerNight ?? r?.price ?? 0) || 0;
+        const itemNights = Number(r?.nights ?? nights ?? 1) || 1;
+        const name = r?.name ?? r?.roomName ?? r?.type ?? r?.roomType;
+        return { name, quantity, pricePerNight, nights: itemNights };
+      });
+
       let rows = "";
       let sum = 0;
-      roomsArray.forEach((r) => {
-        const qty = Number(r?.quantity ?? r?.roomCount ?? 1) || 1;
-        const ppn = Number(r?.pricePerNight ?? r?.price ?? 0) || 0;
-        const itemNights = Number(r?.nights ?? nights ?? 1) || 1;
-        const line = ppn * qty * itemNights;
+      normalizedRooms.forEach((r) => {
+        const line = r.pricePerNight * r.quantity * r.nights;
         sum += Number.isFinite(line) ? line : 0;
         rows += `
           <tr>
-            <td>${safe(r?.name ?? r?.roomName ?? r?.type ?? r?.roomType)}</td>
-            <td style="text-align:center">${qty}</td>
-            <td style="text-align:right">${fmtMoney(ppn)}</td>
-            <td style="text-align:center">${itemNights}</td>
+            <td>${safe(r.name)}</td>
+            <td style="text-align:center">${r.quantity}</td>
+            <td style="text-align:right">${fmtMoney(r.pricePerNight)}</td>
+            <td style="text-align:center">${r.nights}</td> 
             <td style="text-align:right">${fmtMoney(line)}</td>
           </tr>`;
       });
@@ -117,29 +133,6 @@ router.post("/send-email", async (req, res) => {
           <tbody>${rows}
           </tbody>
         </table>`;
-    } else if (singleRoomObj && typeof singleRoomObj === "object") {
-      const r = singleRoomObj;
-      const qty = Number(r?.quantity ?? r?.roomCount ?? 1) || 1;
-      const ppn = Number(r?.pricePerNight ?? r?.price ?? req.body.pricePerNight ?? 0) || 0;
-      const itemNights = Number(r?.nights ?? nights ?? 1) || 1;
-      const line = ppn * qty * itemNights;
-      computedTotal = Number.isFinite(line) ? line : null;
-      roomDetailsHtml = `
-        <p><b>Room:</b> ${safe(r?.name ?? r?.roomName ?? r?.type ?? r?.roomType)}</p>
-        <p><b>Quantity:</b> ${qty}</p>
-        <p><b>Price/Night:</b> ${fmtMoney(ppn)}</p>
-        <p><b>Nights:</b> ${itemNights}</p>`;
-    } else if (req.body.roomName || req.body.roomType || req.body.roomCount || req.body.pricePerNight || req.body.totalPrice) {
-      const qty = Number(req.body.roomCount ?? 1) || 1;
-      const ppn = Number(req.body.pricePerNight ?? 0) || 0;
-      const itemNights = Number(nights ?? 1) || 1;
-      const line = ppn * qty * itemNights;
-      computedTotal = Number.isFinite(line) ? line : null;
-      roomDetailsHtml = `
-        <p><b>Room:</b> ${safe(req.body.roomName ?? req.body.roomType)}</p>
-        <p><b>Quantity:</b> ${qty}</p>
-        <p><b>Price/Night:</b> ${fmtMoney(ppn)}</p>
-        <p><b>Nights:</b> ${itemNights}</p>`;
     }
 
     const overallTotal = (
