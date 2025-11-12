@@ -17,21 +17,21 @@ const transporter = nodemailer.createTransport({
 
 router.post("/send-email", async (req, res) => {
   try {
-    const {
-      hotelEmail, 
-      fullName,
-      email,
-      phone,
-      country,
-      message,
-      checkIn,
-      checkOut,
-      adultCount,
-      childCount,
-    } = req.body;
+    const userInfo = req.body.user || {};
+    const bookingData = req.body.booking_data || {};
 
-    // Accept alternate field name `hotelMail`
-    const hotelEmailFinal = hotelEmail || req.body.hotelMail;
+    const fullName = userInfo.fullName ?? req.body.fullName;
+    const email = userInfo.email ?? req.body.email;
+    const phone = userInfo.phone ?? req.body.phone;
+    const country = userInfo.country ?? req.body.country;
+    const message = userInfo.message ?? req.body.message;
+
+    const checkIn = bookingData.checkIn ?? req.body.checkIn;
+    const checkOut = bookingData.checkOut ?? req.body.checkOut;
+    const adultCount = bookingData.adultCount ?? req.body.adultCount;
+    const childCount = bookingData.childCount ?? req.body.childCount;
+
+    const hotelEmailFinal = (bookingData.hotelEmail || req.body.hotelEmail || req.body.hotelMail || bookingData.hotelMail);
 
     if (!hotelEmailFinal) {
       return res.status(400).json({ message: "Missing hotel email" });
@@ -65,24 +65,29 @@ router.post("/send-email", async (req, res) => {
     const co = toDate(checkOut);
     const nights = ci && co ? Math.max(1, Math.round((co - ci) / (1000 * 60 * 60 * 24))) : null;
 
-    const fmtMoney = (n, cur) => {
+    const fmtMoney = (n) => {
       if (n == null || n === "") return "N/A";
       try {
-        return new Intl.NumberFormat(undefined, { style: cur ? "currency" : undefined, currency: cur || undefined, maximumFractionDigits: 2 }).format(Number(n));
+        return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(Number(n));
       } catch (_) {
-        return `${n}${cur ? " " + cur : ""}`;
+        return String(n);
       }
     };
     const safe = (v) => (v == null || v === "" ? "N/A" : v);
-    const currency = req.body.currency;
+    // Currency field is intentionally ignored/omitted
 
     let roomDetailsHtml = "<p><i>No room details provided</i></p>";
     let computedTotal = null;
 
-    if (Array.isArray(req.body.rooms) && req.body.rooms.length) {
+    const roomsArray = Array.isArray(req.body.rooms)
+      ? req.body.rooms
+      : (Array.isArray(bookingData.rooms) ? bookingData.rooms : null);
+    const singleRoomObj = req.body.room || bookingData.room;
+
+    if (Array.isArray(roomsArray) && roomsArray.length) {
       let rows = "";
       let sum = 0;
-      req.body.rooms.forEach((r) => {
+      roomsArray.forEach((r) => {
         const qty = Number(r?.quantity ?? r?.roomCount ?? 1) || 1;
         const ppn = Number(r?.pricePerNight ?? r?.price ?? 0) || 0;
         const itemNights = Number(r?.nights ?? nights ?? 1) || 1;
@@ -92,9 +97,9 @@ router.post("/send-email", async (req, res) => {
           <tr>
             <td>${safe(r?.name ?? r?.roomName ?? r?.type ?? r?.roomType)}</td>
             <td style="text-align:center">${qty}</td>
-            <td style="text-align:right">${fmtMoney(ppn, r?.currency || currency)}</td>
+            <td style="text-align:right">${fmtMoney(ppn)}</td>
             <td style="text-align:center">${itemNights}</td>
-            <td style="text-align:right">${fmtMoney(line, r?.currency || currency)}</td>
+            <td style="text-align:right">${fmtMoney(line)}</td>
           </tr>`;
       });
       computedTotal = sum;
@@ -112,8 +117,8 @@ router.post("/send-email", async (req, res) => {
           <tbody>${rows}
           </tbody>
         </table>`;
-    } else if (req.body.room && typeof req.body.room === "object") {
-      const r = req.body.room;
+    } else if (singleRoomObj && typeof singleRoomObj === "object") {
+      const r = singleRoomObj;
       const qty = Number(r?.quantity ?? r?.roomCount ?? 1) || 1;
       const ppn = Number(r?.pricePerNight ?? r?.price ?? req.body.pricePerNight ?? 0) || 0;
       const itemNights = Number(r?.nights ?? nights ?? 1) || 1;
@@ -122,7 +127,7 @@ router.post("/send-email", async (req, res) => {
       roomDetailsHtml = `
         <p><b>Room:</b> ${safe(r?.name ?? r?.roomName ?? r?.type ?? r?.roomType)}</p>
         <p><b>Quantity:</b> ${qty}</p>
-        <p><b>Price/Night:</b> ${fmtMoney(ppn, r?.currency || currency)}</p>
+        <p><b>Price/Night:</b> ${fmtMoney(ppn)}</p>
         <p><b>Nights:</b> ${itemNights}</p>`;
     } else if (req.body.roomName || req.body.roomType || req.body.roomCount || req.body.pricePerNight || req.body.totalPrice) {
       const qty = Number(req.body.roomCount ?? 1) || 1;
@@ -133,16 +138,20 @@ router.post("/send-email", async (req, res) => {
       roomDetailsHtml = `
         <p><b>Room:</b> ${safe(req.body.roomName ?? req.body.roomType)}</p>
         <p><b>Quantity:</b> ${qty}</p>
-        <p><b>Price/Night:</b> ${fmtMoney(ppn, currency)}</p>
+        <p><b>Price/Night:</b> ${fmtMoney(ppn)}</p>
         <p><b>Nights:</b> ${itemNights}</p>`;
     }
 
-    const overallTotal = (req.body.totalPrice != null ? req.body.totalPrice : computedTotal);
+    const overallTotal = (
+      bookingData.totalPrice != null
+        ? bookingData.totalPrice
+        : (req.body.totalPrice != null ? req.body.totalPrice : computedTotal)
+    );
     const roomSection = `
       <hr>
       <h3>Room Details</h3>
       ${roomDetailsHtml}
-      ${overallTotal != null ? `<p><b>Total Amount:</b> ${fmtMoney(overallTotal, currency)}</p>` : ""}
+      ${overallTotal != null ? `<p><b>Total Amount:</b> ${fmtMoney(overallTotal)}</p>` : ""}
     `;
 
     const finalContent = mailContent + roomSection;
