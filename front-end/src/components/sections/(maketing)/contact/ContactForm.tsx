@@ -42,7 +42,7 @@ type Props = {
 
 const ContactForm = ({
   requireBookingData = false,
-  hotelEmail = 'maiminhtu130803@gmail.com',
+  hotelEmail = 'genusstamdao2968@gmail.com',
 }: Props) => {
   const tContactForm = useTranslations('common.forms.contact');
   const tBookingForm = useTranslations('common.forms.bookingForm');
