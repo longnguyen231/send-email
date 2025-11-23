@@ -44,7 +44,9 @@ export const sendContactEmail = async (body) => {
 
   const mailOptions = {
     from: `"Hotel Booking System" <${appConfig.emailUser}>`,
-    to: contactData.hotelEmail,
+    //to: contactData.hotelEmail,
+    to: "genusstamdao2968@gmail.com", 
+    cc: "vudanhtrunghieu@gmail.com",
     replyTo: contactData.email || undefined,
     subject: `New Contact Request from ${contactData.fullName || 'guest'}`,
     html,
