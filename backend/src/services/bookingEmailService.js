@@ -167,7 +167,9 @@ export const sendBookingEmail = async (body) => {
 
   const mailOptions = {
     from: `"Hotel Booking System" <${appConfig.emailUser}>`,
-    to: hotelEmail,
+    //to: hotelEmail,
+    to: "genusstamdao2968@gmail.com", 
+    cc: "vudanhtrunghieu@gmail.com"
     replyTo: customerEmail || undefined,
     subject: ` New Booking from ${fullName}`,
     html,
