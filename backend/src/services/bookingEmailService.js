@@ -198,7 +198,7 @@ const buildMailBody = (body) => {
 
   const roomSection = buildRoomSection(bookingData, body);
   const totalAmount =
-    bookingData.totalPrice ?? body?.totalPrice ?? roomSection.computedTotal;
+    roomSection.computedTotal ?? bookingData.totalPrice ?? body?.totalPrice;
 
   return {
     hotelEmail: resolveHotelEmail(bookingData, body),
