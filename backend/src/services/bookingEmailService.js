@@ -139,7 +139,7 @@ const buildMailBody = (body) => {
     <p><b>Adults:</b> ${adultCount}</p>
     <p><b>Children:</b> ${childCount}</p>
     <br>
-    <p>— This message was sent automatically from your hotel booking system.</p>
+    <!-- <p>— This message was sent automatically from your hotel booking system.</p> -->
   `;
 
   const roomSection = buildRoomSection(bookingData, body);
@@ -154,7 +154,13 @@ const buildMailBody = (body) => {
       <hr>
       <h3>Room Details</h3>
       ${roomSection.html}
-      ${totalAmount != null ? `<p><b>Total Amount:</b> ${fmtMoney(totalAmount)}</p>` : ''}`,
+      ${totalAmount != null ? `<p><b>Total Amount:</b> ${fmtMoney(totalAmount)}</p>` : ''}
+      <br><br>
+      <hr style="border:0; border-top:1px solid #000000ff; width:100%; margin:20px 0;" />
+      <p style="color:#0077cc; font-weight:bold; text-align:center; margin-top:4px;">
+        This is an automated email from the booking system – please do not reply to this message.
+      </p>
+    `,
   };
 };
 
